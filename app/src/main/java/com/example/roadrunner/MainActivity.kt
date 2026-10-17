@@ -16,7 +16,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(20, 27, 36)
         window.navigationBarColor = Color.rgb(20, 27, 36)
-        setContentView(GameView())
+        setContentView(GameView(this))
     }
 }
 
