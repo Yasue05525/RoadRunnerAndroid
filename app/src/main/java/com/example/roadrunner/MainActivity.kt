@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Color
 import android.view.MotionEvent
 import android.view.View
+import android.content.Context
 import android.graphics.Typeface
 import kotlin.math.min
 
@@ -19,7 +20,7 @@ class MainActivity : Activity() {
     }
 }
 
-private class GameView : View {
+private class GameView(context: Context) : View(context) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private var lane = 1
     private var score = 0
@@ -35,7 +36,7 @@ private class GameView : View {
 
     private data class Car(var lane: Int, var y: Float, val color: Int)
 
-    constructor(context: android.content.Context) : super(context) { isFocusable = true }
+    init { isFocusable = true }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
