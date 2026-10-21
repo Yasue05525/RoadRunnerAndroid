@@ -9,13 +9,14 @@ import android.view.MotionEvent
 import android.view.View
 import android.content.Context
 import android.graphics.Typeface
+import kotlin.math.abs
 import kotlin.math.min
 
 class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(20, 27, 36)
-        window.navigationBarColor = Color.rgb(20, 27, 36)
+        window.statusBarColor = Color.rgb(12, 20, 28)
+        window.navigationBarColor = Color.rgb(12, 20, 28)
         setContentView(GameView(this))
     }
 }
@@ -25,6 +26,10 @@ private class GameView(context: Context) : View(context) {
     private var lane = 1
     private var score = 0
     private var best = 0
+    private var coins = 0
+    private var distance = 0f
+    private var scoreCarry = 0f
+    private var coinCarry = 0f
     private var speed = 8f
     private var roadOffset = 0f
     private var lastTime = System.nanoTime()
@@ -43,15 +48,23 @@ private class GameView(context: Context) : View(context) {
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0 || h <= 0) return
-        val dt = ((System.nanoTime() - lastTime) / 1_000_000_000f).coerceIn(0f, 0.04f)
-        lastTime = System.nanoTime()
+        val now = System.nanoTime()
+        val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0f, 0.04f)
+        lastTime = now
         if (started && !gameOver) update(dt, w, h)
         drawScene(canvas, w, h)
         postInvalidateOnAnimation()
     }
 
     private fun update(dt: Float, w: Float, h: Float) {
-        score += (dt * 12).toInt()
+        // Keep fractional progress between frames so score doesn't stay at zero.
+        distance += speed * dt
+        scoreCarry += dt * 12f
+        val gained = scoreCarry.toInt()
+        if (gained > 0) { score += gained; scoreCarry -= gained }
+        coinCarry += dt * (0.7f + speed * 0.055f)
+        val earned = coinCarry.toInt()
+        if (earned > 0) { coins += earned; coinCarry -= earned }
         speed = (8f + score / 90f).coerceAtMost(19f)
         roadOffset = (roadOffset + speed * h * 0.09f * dt) % (h * 0.18f)
         spawnTimer -= dt
@@ -80,56 +93,106 @@ private class GameView(context: Context) : View(context) {
     }
 
     private fun drawScene(c: Canvas, w: Float, h: Float) {
-        c.drawColor(Color.rgb(35, 120, 76))
-        p.color = Color.rgb(47, 143, 85)
+        c.drawColor(Color.rgb(25, 92, 58))
+        p.color = Color.rgb(34, 111, 65)
         c.drawRect(0f, 0f, w * 0.12f, h, p)
         c.drawRect(w * 0.88f, 0f, w, h, p)
-        val left = w * 0.12f
-        val right = w * 0.88f
-        p.color = Color.rgb(54, 58, 66)
-        c.drawRect(left, 0f, right, h, p)
-        p.color = Color.rgb(230, 230, 220)
-        p.strokeWidth = w * 0.012f
-        c.drawLine(left, 0f, left, h, p)
-        c.drawLine(right, 0f, right, h, p)
+
+        // Perspective road: narrow at the horizon, wide near the player.
+        val horizonY = h * 0.16f
+        val topLeft = w * 0.43f
+        val topRight = w * 0.57f
+        val bottomLeft = w * 0.08f
+        val bottomRight = w * 0.92f
+        p.color = Color.rgb(48, 52, 60)
+        val road = android.graphics.Path().apply {
+            moveTo(topLeft, horizonY); lineTo(topRight, horizonY)
+            lineTo(bottomRight, h); lineTo(bottomLeft, h); close()
+        }
+        c.drawPath(road, p)
+
+        // Perspective edge lines and dashed lane dividers.
+        p.color = Color.rgb(231, 230, 213)
+        p.strokeWidth = w * 0.009f
+        c.drawLine(topLeft, horizonY, bottomLeft, h, p)
+        c.drawLine(topRight, horizonY, bottomRight, h, p)
         for (divider in 1..2) {
-            val x = left + (right - left) * divider / 3f
-            var y = -h * 0.18f + roadOffset
-            p.color = Color.rgb(220, 220, 210)
-            while (y < h) {
-                c.drawRoundRect(x - w * 0.006f, y, x + w * 0.006f, y + h * 0.09f, 8f, 8f, p)
-                y += h * 0.18f
+            val topX = topLeft + (topRight - topLeft) * divider / 3f
+            val bottomX = bottomLeft + (bottomRight - bottomLeft) * divider / 3f
+            var t = 0f
+            while (t < 1f) {
+                val t1 = ((t + roadOffset / (h * 0.8f)) % 1f)
+                val t2 = (t1 + 0.065f).coerceAtMost(1f)
+                val y1 = horizonY + (h - horizonY) * t1 * t1
+                val y2 = horizonY + (h - horizonY) * t2 * t2
+                val x1 = topX + (bottomX - topX) * t1
+                val x2 = topX + (bottomX - topX) * t2
+                p.strokeWidth = w * (0.002f + 0.008f * t1)
+                c.drawLine(x1, y1, x2, y2, p)
+                t += 0.18f
             }
         }
-        val carW = w * 0.15f
-        val carH = h * 0.105f
-        cars.forEach { drawCar(c, laneCenter(it.lane, w), it.y, carW, carH, it.color) }
-        drawCar(c, laneCenter(lane, w), h * 0.78f, carW * 1.03f, carH * 1.03f, Color.rgb(50, 205, 235), true)
-        p.color = Color.argb(175, 10, 17, 25)
-        c.drawRoundRect(w * 0.04f, h * 0.025f, w * 0.46f, h * 0.105f, 22f, 22f, p)
+
+        cars.forEach {
+            val t = ((it.y / h) + 0.15f).coerceIn(0.05f, 1.1f)
+            val x = perspectiveLaneCenter(it.lane, t, w)
+            val scale = (0.35f + t * 0.8f).coerceIn(0.35f, 1.1f)
+            drawCar(c, x, it.y, w * 0.15f * scale, h * 0.105f * scale, it.color)
+        }
+        drawCar(c, perspectiveLaneCenter(lane, 0.9f, w), h * 0.79f, w * 0.155f, h * 0.11f, Color.rgb(42, 194, 231), true)
+
+        p.color = Color.argb(190, 10, 17, 25)
+        c.drawRoundRect(w * 0.035f, h * 0.025f, w * 0.57f, h * 0.125f, 22f, 22f, p)
         p.color = Color.WHITE
         p.typeface = Typeface.create("sans-serif-bold", Typeface.BOLD)
-        p.textSize = w * 0.055f
-        c.drawText("СЧЁТ  $score", w * 0.075f, h * 0.072f, p)
-        p.textSize = w * 0.035f
-        c.drawText("РЕКОРД  ${maxOf(best, score)}", w * 0.075f, h * 0.095f, p)
+        p.textSize = w * 0.047f
+        c.drawText("СЧЁТ  $score", w * 0.065f, h * 0.065f, p)
+        p.color = Color.rgb(255, 208, 64)
+        c.drawText("● МОНЕТЫ  $coins", w * 0.065f, h * 0.105f, p)
+        p.color = Color.WHITE
+        p.textSize = w * 0.033f
+        c.drawText("РЕКОРД  ${maxOf(best, score)}", w * 0.64f, h * 0.065f, p)
         if (!started) drawOverlay(c, w, h, "ROAD RUNNER", "Нажми, чтобы начать", "Свайпай влево и вправо")
-        if (gameOver) drawOverlay(c, w, h, "СТОЛКНОВЕНИЕ!", "Счёт: $score", "Нажми, чтобы сыграть снова")
+        if (gameOver) drawOverlay(c, w, h, "СТОЛКНОВЕНИЕ!", "Счёт: $score  •  Монеты: $coins", "Нажми, чтобы сыграть снова")
     }
 
-    private fun laneCenter(l: Int, w: Float) = w * (0.12f + 0.76f * (l + 0.5f) / 3f)
+    private fun perspectiveLaneCenter(l: Int, t: Float, w: Float): Float {
+        val topLeft = w * 0.43f
+        val topRight = w * 0.57f
+        val bottomLeft = w * 0.08f
+        val bottomRight = w * 0.92f
+        val top = topLeft + (topRight - topLeft) * (l + 0.5f) / 3f
+        val bottom = bottomLeft + (bottomRight - bottomLeft) * (l + 0.5f) / 3f
+        val depth = t.coerceIn(0f, 1f)
+        return top + (bottom - top) * depth
+    }
 
     private fun drawCar(c: Canvas, x: Float, y: Float, cw: Float, ch: Float, color: Int, player: Boolean = false) {
-        p.color = Color.rgb(22, 27, 33)
-        c.drawRoundRect(x - cw * 0.48f, y - ch * 0.35f, x - cw * 0.32f, y + ch * 0.35f, 8f, 8f, p)
-        c.drawRoundRect(x + cw * 0.32f, y - ch * 0.35f, x + cw * 0.48f, y + ch * 0.35f, 8f, 8f, p)
+        // Wheels and body have highlights/shadows to give a more dimensional look.
+        p.color = Color.argb(100, 0, 0, 0)
+        c.drawOval(x - cw * 0.52f, y + ch * 0.30f, x + cw * 0.52f, y + ch * 0.52f, p)
+        p.color = Color.rgb(19, 23, 29)
+        c.drawRoundRect(x - cw * 0.48f, y - ch * 0.30f, x - cw * 0.31f, y + ch * 0.36f, 8f, 8f, p)
+        c.drawRoundRect(x + cw * 0.31f, y - ch * 0.30f, x + cw * 0.48f, y + ch * 0.36f, 8f, 8f, p)
         p.color = color
         c.drawRoundRect(x - cw * 0.38f, y - ch * 0.5f, x + cw * 0.38f, y + ch * 0.5f, cw * 0.18f, cw * 0.18f, p)
-        p.color = if (player) Color.rgb(180, 244, 255) else Color.rgb(190, 224, 238)
-        c.drawRoundRect(x - cw * 0.25f, y - ch * 0.27f, x + cw * 0.25f, y + ch * 0.02f, 7f, 7f, p)
-        p.color = if (player) Color.WHITE else Color.rgb(255, 240, 185)
-        c.drawRoundRect(x - cw * 0.27f, y + ch * 0.30f, x - cw * 0.10f, y + ch * 0.42f, 4f, 4f, p)
-        c.drawRoundRect(x + cw * 0.10f, y + ch * 0.30f, x + cw * 0.27f, y + ch * 0.42f, 4f, 4f, p)
+        p.color = adjustColor(color, 1.22f)
+        c.drawRoundRect(x - cw * 0.30f, y - ch * 0.46f, x + cw * 0.30f, y - ch * 0.30f, 5f, 5f, p)
+        // Windshield at the front/top: the player's car now visibly faces forward.
+        p.color = if (player) Color.rgb(173, 239, 255) else Color.rgb(140, 193, 215)
+        c.drawRoundRect(x - cw * 0.25f, y - ch * 0.27f, x + cw * 0.25f, y + ch * 0.04f, 7f, 7f, p)
+        p.color = if (player) Color.rgb(255, 64, 75) else Color.rgb(255, 224, 135)
+        c.drawRoundRect(x - cw * 0.28f, y + ch * 0.30f, x - cw * 0.10f, y + ch * 0.42f, 4f, 4f, p)
+        c.drawRoundRect(x + cw * 0.10f, y + ch * 0.30f, x + cw * 0.28f, y + ch * 0.42f, 4f, 4f, p)
+        p.color = Color.argb(90, 255, 255, 255)
+        p.strokeWidth = cw * 0.025f
+        c.drawLine(x - cw * 0.31f, y - ch * 0.12f, x - cw * 0.31f, y + ch * 0.18f, p)
+    }
+
+    private fun adjustColor(color: Int, factor: Float): Int {
+        return Color.rgb((Color.red(color) * factor).toInt().coerceAtMost(255),
+            (Color.green(color) * factor).toInt().coerceAtMost(255),
+            (Color.blue(color) * factor).toInt().coerceAtMost(255))
     }
 
     private fun drawOverlay(c: Canvas, w: Float, h: Float, title: String, subtitle: String, hint: String) {
@@ -155,9 +218,10 @@ private class GameView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val dx = event.x - downX
                 if (!started || gameOver) {
-                    started = true; gameOver = false; score = 0; speed = 8f; lane = 1
+                    started = true; gameOver = false; score = 0; scoreCarry = 0f
+                    speed = 8f; lane = 1; distance = 0f; coinCarry = 0f
                     cars.clear(); spawnTimer = 0.7f; lastTime = System.nanoTime()
-                } else if (kotlin.math.abs(dx) > width * 0.06f) {
+                } else if (abs(dx) > width * 0.06f) {
                     lane = (lane + if (dx < 0) -1 else 1).coerceIn(0, 2)
                 } else {
                     lane = (lane + if (event.x < width / 2f) -1 else 1).coerceIn(0, 2)
