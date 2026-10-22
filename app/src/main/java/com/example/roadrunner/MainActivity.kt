@@ -43,6 +43,8 @@ private class GameView(context: Context) : View(context) {
     private var spawnTimer = 0.7f
     private var downX = 0f
     private var downY = 0f
+    private val carColors = intArrayOf(Color.rgb(42,194,231), Color.rgb(255,92,78), Color.rgb(255,190,45), Color.rgb(153,111,255), Color.rgb(80,220,130))
+    private val carPrices = intArrayOf(0, 100, 250, 500, 900)
     private var selectedCar = prefs.getInt("selected_car", 0).coerceIn(0, carColors.lastIndex)
     private val owned = mutableSetOf<Int>().apply {
         add(0)
@@ -50,8 +52,6 @@ private class GameView(context: Context) : View(context) {
     }
     private val cars = mutableListOf<Car>()
     private data class Car(val lane: Int, var y: Float, val color: Int)
-    private val carColors = intArrayOf(Color.rgb(42,194,231), Color.rgb(255,92,78), Color.rgb(255,190,45), Color.rgb(153,111,255), Color.rgb(80,220,130))
-    private val carPrices = intArrayOf(0, 100, 250, 500, 900)
 
     init { isFocusable = true }
 
