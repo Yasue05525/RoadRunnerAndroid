@@ -166,7 +166,7 @@ private class GameView(context: Context) : View(context) {
         c.drawRoundRect(x+cw*.30f,y-ch*.24f,x+cw*.47f,y+ch*.34f,8f,8f,p)
         p.color=color; c.drawRoundRect(x-cw*.37f,y-ch*.5f,x+cw*.37f,y+ch*.5f,cw*.16f,cw*.16f,p)
         p.color=Color.rgb(175,222,239); c.drawRoundRect(x-cw*.24f,y-ch*.29f,x+cw*.24f,y+ch*.02f,7f,7f,p)
-        p.color=player?Color.rgb(255,55,65):Color.rgb(255,228,145)
+        p.color = if (player) Color.rgb(255,55,65) else Color.rgb(255,228,145)
         c.drawRoundRect(x-cw*.27f,y+ch*.31f,x-cw*.10f,y+ch*.43f,4f,4f,p)
         c.drawRoundRect(x+cw*.10f,y+ch*.31f,x+cw*.27f,y+ch*.43f,4f,4f,p)
         p.color=Color.argb(100,255,255,255); c.drawLine(x-cw*.29f,y-ch*.35f,x-cw*.29f,y+ch*.18f,p)
@@ -249,8 +249,8 @@ private class GameView(context: Context) : View(context) {
                         else if(e.y in h*.57f..h*.68f) screen=Screen.MENU
                     }
                     Screen.PLAYING -> {
-                        if(abs(dx)>w*.06f) lane=(lane+if(dx<0)-1 else 1).coerceIn(0,2)
-                        else if(abs(dy)<h*.08f) lane=(lane+if(e.x<w/2)-1 else 1).coerceIn(0,2)
+                        if(abs(dx)>w*.06f) lane = (lane + (if (dx < 0) -1 else 1)).coerceIn(0, 2)
+                        else if(abs(dy)<h*.08f) lane = (lane + (if (e.x < w / 2) -1 else 1)).coerceIn(0, 2)
                     }
                 }
                 invalidate(); return true
