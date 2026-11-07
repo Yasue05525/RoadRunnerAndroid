@@ -1,7 +1,11 @@
-name: Build Android APK
+name: Build Unity Android APK
+
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [main, master]
+    paths:
+      - 'UnityProject/**'
+      - '.github/workflows/android-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -9,43 +13,67 @@ permissions:
 
 jobs:
   build:
+    name: Build Unity 3D game for Android
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+
     steps:
-      - name: Checkout source
+      - name: Checkout latest source
         uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          fetch-depth: 0
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Check Unity license secret
+        shell: bash
+        run: |
+          if [ -z "$UNITY_LICENSE" ]; then
+            echo "::error::Missing UNITY_LICENSE secret. Add your Unity license contents in Settings > Secrets and variables > Actions > New repository secret (name: UNITY_LICENSE)."
+            exit 1
+          fi
+
+      - name: Build actual Unity project (not the old Kotlin prototype)
+        uses: game-ci/unity-builder@v4
         with:
-          packages: 'platforms;android-35 build-tools;35.0.0'
-          accept-android-sdk-licenses: true
+          projectPath: UnityProject
+          unityVersion: auto
+          targetPlatform: Android
+          buildMethod: RunnerSceneBuilder.BuildAndroid
+          buildsPath: Builds
+          buildName: RoadRunner
+          androidExportType: androidPackage
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Verify newly generated APK
+        shell: bash
+        run: |
+          APK="UnityProject/Builds/Android/RoadRunner.apk"
+          test -s "$APK" || { echo "::error::Unity did not create $APK"; exit 1; }
+          SIZE=$(stat -c%s "$APK")
+          echo "APK: $APK"
+          echo "Size: $SIZE bytes"
+          echo "Commit: $GITHUB_SHA"
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "::error::APK is unexpectedly small (<1 MB). Refusing to publish a likely incomplete or wrong APK."
+            exit 1
+          fi
+          sha256sum "$APK"
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
-
-      - name: Upload APK artifact
+      - name: Upload fresh Unity APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RoadRunner-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: RoadRunner-Unity-Android-${{ github.run_number }}
+          path: UnityProject/Builds/Android/RoadRunner.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+      - name: Publish fresh APK release
         if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
-          files: app/build/outputs/apk/debug/app-debug.apk
+          name: Build ${{ github.run_number }} — Unity Android
+          files: UnityProject/Builds/Android/RoadRunner.apk
+          fail_on_unmatched_files: true
