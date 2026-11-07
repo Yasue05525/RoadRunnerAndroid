@@ -1,5 +1,13 @@
 #if UNITY_EDITOR
-using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;using UnityEditorInternal;
+using System;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
+using UnityEditorInternal;
+
 public static class RunnerSceneBuilder{
  const string Root="Assets/RunnerGenerated",P=Root+"/Prefabs",M=Root+"/Materials";
  [MenuItem("Road Runner 3D/Build Complete 3D Scene")]
@@ -18,6 +26,25 @@ public static class RunnerSceneBuilder{
  var game=new GameObject("Runner Game").AddComponent<RunnerGame>();game.SetPlayer(controller);
  AssetDatabase.SaveAssets();EditorSceneManager.SaveScene(scene,"Assets/Scenes/Runner.unity");EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene("Assets/Scenes/Runner.unity",true)};Debug.Log("3D Runner scene generated.");
  }
+
+ // Used by GitHub Actions: regenerate the scene from source and build a fresh Android APK.
+ public static void BuildAndroid(){
+  Build();
+  var scenes=EditorBuildSettings.scenes.Where(s=>s.enabled).Select(s=>s.path).ToArray();
+  if(scenes.Length==0) throw new Exception("No enabled scenes were generated for the Android build.");
+  const string output="Builds/Android/RoadRunner.apk";
+  Directory.CreateDirectory("Builds/Android");
+  var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{
+   scenes=scenes,
+   locationPathName=output,
+   target=BuildTarget.Android,
+   options=BuildOptions.None
+  });
+  if(report.summary.result!=BuildResult.Succeeded)
+   throw new Exception("Android build failed: "+report.summary.result+" ("+report.summary.totalErrors+" errors).");
+  Debug.Log("Fresh Android APK created: "+output+" ("+report.summary.totalSize+" bytes).");
+ }
+
  static GameObject Car(string name,Material body,Material glass,Material tire){var root=new GameObject(name);Part(root,"Body",Vector3.zero,new Vector3(1.6f,.8f,3.2f),body);Part(root,"Cabin",new Vector3(0,.62f,-.15f),new Vector3(1.12f,.65f,1.55f),glass);for(int x=-1;x<=1;x+=2)for(int z=-1;z<=1;z+=2){var wheel=GameObject.CreatePrimitive(PrimitiveType.Cylinder);wheel.name="Wheel";wheel.transform.SetParent(root.transform,false);wheel.transform.localPosition=new Vector3(x*.83f,-.25f,z*.95f);wheel.transform.localRotation=Quaternion.Euler(0,0,90);wheel.transform.localScale=new Vector3(.28f,.18f,.28f);wheel.GetComponent<Renderer>().sharedMaterial=tire;Object.DestroyImmediate(wheel.GetComponent<Collider>());}return root;}
  static void Part(GameObject root,string n,Vector3 pos,Vector3 scale,Material m){var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=n;o.transform.SetParent(root.transform,false);o.transform.localPosition=pos;o.transform.localScale=scale;o.GetComponent<Renderer>().sharedMaterial=m;Object.DestroyImmediate(o.GetComponent<Collider>());}
  static GameObject Cube(string n,Vector3 pos,Vector3 scale,Material m){var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=n;o.transform.position=pos;o.transform.localScale=scale;o.GetComponent<Renderer>().sharedMaterial=m;return o;}
