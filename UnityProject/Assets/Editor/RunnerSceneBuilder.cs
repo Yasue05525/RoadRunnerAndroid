@@ -1,0 +1,28 @@
+#if UNITY_EDITOR
+using UnityEditor;using UnityEditor.SceneManagement;using UnityEngine;using UnityEditorInternal;
+public static class RunnerSceneBuilder{
+ const string Root="Assets/RunnerGenerated",P=Root+"/Prefabs",M=Root+"/Materials";
+ [MenuItem("Road Runner 3D/Build Complete 3D Scene")]
+ public static void Build(){Folder("Assets","RunnerGenerated");Folder(Root,"Prefabs");Folder(Root,"Materials");Folder("Assets","Scenes");
+ EnsureTag("Player");EnsureTag("Obstacle");
+ var road=Mat("Road",new Color(.12f,.14f,.17f));var line=Mat("Lines",new Color(.95f,.92f,.78f));var grass=Mat("Grass",new Color(.12f,.36f,.19f));var blue=Mat("Player",new Color(.08f,.72f,.88f));var glass=Mat("Glass",new Color(.25f,.72f,.88f));var tire=Mat("Tire",new Color(.02f,.025f,.03f));var red=Mat("Obstacle",new Color(.85f,.12f,.1f));var tree=Mat("Tree",new Color(.12f,.32f,.15f));
+ var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+ Cube("Ground",new Vector3(0,-.22f,100),new Vector3(180,.2f,220),grass);Cube("Road",new Vector3(0,0,100),new Vector3(6,.2f,200),road);
+ Cube("Lane -1",new Vector3(-1,.11f,100),new Vector3(.15f,.015f,200),line);Cube("Lane +1",new Vector3(1,.11f,100),new Vector3(.15f,.015f,200),line);
+ for(int side=-1;side<=1;side+=2)for(int z=12;z<195;z+=16){float x=side*Random.Range(7f,13f);var t=GameObject.CreatePrimitive(PrimitiveType.Cylinder);t.name="Tree Trunk";t.transform.position=new Vector3(x,1,z);t.transform.localScale=new Vector3(.4f,2,.4f);t.GetComponent<Renderer>().sharedMaterial=tree;var crown=GameObject.CreatePrimitive(PrimitiveType.Sphere);crown.name="Tree Crown";crown.transform.position=new Vector3(x,3,z);crown.transform.localScale=Vector3.one*2.5f;crown.GetComponent<Renderer>().sharedMaterial=tree;}
+ var camera=new GameObject("Main Camera");var cam=camera.AddComponent<Camera>();cam.tag="MainCamera";cam.orthographic=false;cam.fieldOfView=60;camera.transform.position=new Vector3(0,6,-8);camera.transform.rotation=Quaternion.Euler(15,0,0);camera.AddComponent<AudioListener>();
+ var sun=new GameObject("Directional Light");var l=sun.AddComponent<Light>();l.type=LightType.Directional;l.intensity=1.25f;l.shadows=LightShadows.Soft;sun.transform.rotation=Quaternion.Euler(50,-30,0);RenderSettings.ambientLight=new Color(.55f,.58f,.62f);
+ var player=Car("Player",blue,glass,tire);player.transform.position=new Vector3(0,.5f,0);player.tag="Player";var rb=player.AddComponent<Rigidbody>();rb.isKinematic=true;rb.useGravity=false;var bc=player.AddComponent<BoxCollider>();bc.size=new Vector3(1.6f,.8f,3.2f);var controller=player.AddComponent<RunnerController>();
+ var obstacle=Car("Obstacle",red,glass,tire);obstacle.tag="Obstacle";var orb=obstacle.AddComponent<Rigidbody>();orb.isKinematic=true;orb.useGravity=false;var obc=obstacle.AddComponent<BoxCollider>();obc.size=new Vector3(1.6f,.8f,3.2f);obstacle.AddComponent<ObstacleMover>();PrefabUtility.SaveAsPrefabAsset(obstacle,P+"/ObstacleCar.prefab");Object.DestroyImmediate(obstacle);
+ var sp= new GameObject("Obstacle Spawner").AddComponent<ObstacleSpawner>();sp.Configure(AssetDatabase.LoadAssetAtPath<GameObject>(P+"/ObstacleCar.prefab"),player.transform);
+ var game=new GameObject("Runner Game").AddComponent<RunnerGame>();game.SetPlayer(controller);
+ AssetDatabase.SaveAssets();EditorSceneManager.SaveScene(scene,"Assets/Scenes/Runner.unity");EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene("Assets/Scenes/Runner.unity",true)};Debug.Log("3D Runner scene generated.");
+ }
+ static GameObject Car(string name,Material body,Material glass,Material tire){var root=new GameObject(name);Part(root,"Body",Vector3.zero,new Vector3(1.6f,.8f,3.2f),body);Part(root,"Cabin",new Vector3(0,.62f,-.15f),new Vector3(1.12f,.65f,1.55f),glass);for(int x=-1;x<=1;x+=2)for(int z=-1;z<=1;z+=2){var wheel=GameObject.CreatePrimitive(PrimitiveType.Cylinder);wheel.name="Wheel";wheel.transform.SetParent(root.transform,false);wheel.transform.localPosition=new Vector3(x*.83f,-.25f,z*.95f);wheel.transform.localRotation=Quaternion.Euler(0,0,90);wheel.transform.localScale=new Vector3(.28f,.18f,.28f);wheel.GetComponent<Renderer>().sharedMaterial=tire;Object.DestroyImmediate(wheel.GetComponent<Collider>());}return root;}
+ static void Part(GameObject root,string n,Vector3 pos,Vector3 scale,Material m){var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=n;o.transform.SetParent(root.transform,false);o.transform.localPosition=pos;o.transform.localScale=scale;o.GetComponent<Renderer>().sharedMaterial=m;Object.DestroyImmediate(o.GetComponent<Collider>());}
+ static GameObject Cube(string n,Vector3 pos,Vector3 scale,Material m){var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=n;o.transform.position=pos;o.transform.localScale=scale;o.GetComponent<Renderer>().sharedMaterial=m;return o;}
+ static Material Mat(string n,Color c){string path=M+"/"+n+".mat";var m=AssetDatabase.LoadAssetAtPath<Material>(path);if(m==null){m=new Material(Shader.Find("Standard"));AssetDatabase.CreateAsset(m,path);}m.color=c;EditorUtility.SetDirty(m);return m;}
+ static void Folder(string p,string n){if(!AssetDatabase.IsValidFolder(p+"/"+n))AssetDatabase.CreateFolder(p,n);}
+ static void EnsureTag(string tag){var asset=AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0];var so=new SerializedObject(asset);var tags=so.FindProperty("tags");for(int i=0;i<tags.arraySize;i++)if(tags.GetArrayElementAtIndex(i).stringValue==tag)return;tags.InsertArrayElementAtIndex(tags.arraySize);tags.GetArrayElementAtIndex(tags.arraySize-1).stringValue=tag;so.ApplyModifiedProperties();}
+}
+#endif
