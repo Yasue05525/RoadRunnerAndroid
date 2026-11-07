@@ -1,30 +1,26 @@
-# Road Runner — Unity 3D source
+# Road Runner 3D — Unity 2022.3 LTS
 
-This is a **separate Unity implementation** alongside the existing native Android/Kotlin prototype. It targets Unity 2022.3, Android and the Old Input Manager. The existing Kotlin app is not a Unity project and cannot become a real 3D Unity game just by changing its Canvas drawing code.
+A real 3D endless-runner Android project, kept separate from the previous Kotlin/Canvas prototype.
 
-## Scene requirements
+## Generate the complete scene
 
-Create a scene named `Runner` and use only 3D GameObjects with MeshRenderer and 3D colliders:
-
-- Main Camera: Projection **Perspective**, Position **(0, 6, -8)**, Rotation **(15, 0, 0)**.
-- Road: Cube, Position **(0, 0, 100)**, Scale **(6, 0.2, 200)**.
-- Lane markings: two Cube objects, Scale **(0.15, 0.21, 200)**, Positions **(-1, 0.11, 100)** and **(1, 0.11, 100)**.
-- Lane centers are X = **-2, 0, +2**.
-- Player root: Position **(0, 0.5, 0)**, tag **Player**, BoxCollider, Rigidbody (Is Kinematic on, Use Gravity off). Add `RunnerController`.
-- Player body: Cube Scale **(1.6, 0.8, 3.2)**. Add a smaller cabin Cube above it and four Cylinder wheels rotated **(0, 0, 90)**. Keep all parts as children of Player.
-- Obstacle prefab: same primitive-car construction, different material/color, root tag **Obstacle**, BoxCollider and kinematic Rigidbody; add `ObstacleMover`.
-- Add `ObstacleSpawner` to an empty GameObject and assign the Player and obstacle prefab in Inspector.
-
-The scripts intentionally do not generate meshes or use Sprite/SpriteRenderer/2D physics. Build the car prefabs from Unity's **3D Object > Cube/Cylinder** primitives in the Editor. Ensure the `Player` and `Obstacle` tags exist in **Project Settings > Tags and Layers**.
+1. Open the `UnityProject` folder in Unity Hub using Unity **2022.3 LTS** with Android Build Support (SDK, NDK and OpenJDK) installed.
+2. Wait for Unity to import scripts. In the editor choose **Road Runner 3D → Build Complete 3D Scene**.
+3. The editor tool creates `Assets/Scenes/Runner.unity`, 3D materials, the obstacle car prefab, road, lane markings, roadside trees, perspective camera, lighting, player car, spawner and game manager.
+4. In **Edit → Project Settings → Player → Other Settings**, set **Active Input Handling** to **Input Manager (Old)** or **Both**.
+5. In **File → Build Settings**, choose Android, switch platform, confirm Runner scene is enabled, then Build.
 
 ## Controls and gameplay
 
-Swipe horizontally at least 50 screen pixels to move one lane. Player X is moved with MoveTowards to (currentLane - 1) * 2. Obstacles spawn at X = (lane - 1) * 2, Y = 0.5, Z = 60, move toward negative Z and are destroyed below Z = -20. Each spawn blocks one lane only; the spawner also avoids repeating the same lane consecutively.
+- Three lanes centered at X = -2, 0, +2.
+- Swipe horizontally at least 50 pixels to change lanes. In Editor use A/D or arrow keys.
+- Player root starts at (0, 0.5, 0); road is a 3D Cube at (0,0,100), scale (6,0.2,200).
+- Two lane markers at X = -1 and +1.
+- Obstacles spawn in exactly one lane at Z=60 and Y=0.5, travel toward negative Z and are removed below Z=-20. Two lanes remain open.
+- Score, coins, best score and car ownership persist using PlayerPrefs. Includes menu, shop and replay after collision.
 
-## Android setup
+## Scope and honest status
 
-1. Open this folder's Unity project (create a Unity 2022.3 project and copy the `Assets` folder into it, or copy these scripts into an existing Unity 2022.3 project).
-2. In **Edit > Project Settings > Player > Active Input Handling**, select **Input Manager (Old)** or **Both**.
-3. Add the configured scene to Build Settings, select Android, then Build.
+The gameplay world uses Unity 3D primitives (Cube, Cylinder and Sphere), MeshRenderers and 3D physics colliders. There are no SpriteRenderers, 2D camera or runtime mesh-generation calls. The scene is generated inside the Unity Editor by the included Editor script.
 
-This source drop does not include a compiled APK or a complete Unity scene/prefab asset; those must be authored/imported in the Unity Editor and built with Unity.
+This repository contains the Unity source and scene generator, **not a compiled APK**. It has not yet been imported or compiled by Unity in this environment. A Unity 2022.3 Editor installation and valid Unity license are required to produce the Android APK.
