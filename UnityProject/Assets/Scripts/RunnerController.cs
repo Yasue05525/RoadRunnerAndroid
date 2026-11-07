@@ -1,64 +1,13 @@
 using UnityEngine;
-
-[RequireComponent(typeof(Rigidbody), typeof(BoxCollider))]
-public class RunnerController : MonoBehaviour
-{
-    [SerializeField] private float laneMoveSpeed = 12f;
-    [SerializeField] private float obstacleSpeed = 18f;
-    [SerializeField] private int currentLane = 1;
-    private Vector2 touchStart;
-    private Rigidbody body;
-
-    public int CurrentLane => currentLane;
-    public float ObstacleSpeed => obstacleSpeed;
-
-    private void Awake()
-    {
-        body = GetComponent<Rigidbody>();
-        body.isKinematic = true;
-        body.useGravity = false;
-        transform.position = new Vector3(0f, 0.5f, 0f);
-        transform.rotation = Quaternion.identity;
-    }
-
-    private void Update()
-    {
-        ReadSwipe();
-        float targetX = (currentLane - 1) * 2f;
-        Vector3 position = transform.position;
-        position.x = Mathf.MoveTowards(position.x, targetX, laneMoveSpeed * Time.deltaTime);
-        transform.position = position;
-    }
-
-    private void ReadSwipe()
-    {
-        if (Input.touchCount <= 0) return;
-        Touch touch = Input.GetTouch(0);
-        if (touch.phase == TouchPhase.Began)
-        {
-            touchStart = touch.position;
-        }
-        else if (touch.phase == TouchPhase.Ended)
-        {
-            float deltaX = touch.position.x - touchStart.x;
-            if (Mathf.Abs(deltaX) >= 50f)
-            {
-                currentLane = Mathf.Clamp(currentLane + (deltaX > 0f ? 1 : -1), 0, 2);
-            }
-        }
-    }
-
-    public void SetObstacleSpeed(float value)
-    {
-        obstacleSpeed = Mathf.Max(0f, value);
-    }
-
-    private void OnCollisionEnter(Collision collision)
-    {
-        if (collision.collider.CompareTag("Obstacle"))
-        {
-            // Connect this event to the game's game-over flow.
-            enabled = false;
-        }
-    }
+[RequireComponent(typeof(Rigidbody),typeof(BoxCollider))]
+public sealed class RunnerController:MonoBehaviour{
+ [SerializeField] float laneSpeed=14f,swipePixels=50f; int lane=1; Vector2 touchStart; Rigidbody body; public bool InputEnabled{get;set;}=true;
+ void Awake(){body=GetComponent<Rigidbody>();body.isKinematic=true;body.useGravity=false;body.interpolation=RigidbodyInterpolation.Interpolate;}
+ void Update(){if(!InputEnabled)return;if(Input.touchCount>0){Touch t=Input.GetTouch(0);if(t.phase==TouchPhase.Began)touchStart=t.position;else if(t.phase==TouchPhase.Ended){float dx=t.position.x-touchStart.x;if(Mathf.Abs(dx)>=swipePixels)lane=Mathf.Clamp(lane+(dx>0?1:-1),0,2);}}
+ #if UNITY_EDITOR || UNITY_STANDALONE
+ if(Input.GetKeyDown(KeyCode.LeftArrow)||Input.GetKeyDown(KeyCode.A))lane=Mathf.Max(0,lane-1);if(Input.GetKeyDown(KeyCode.RightArrow)||Input.GetKeyDown(KeyCode.D))lane=Mathf.Min(2,lane+1);
+ #endif
+ Vector3 p=body.position;p.x=Mathf.MoveTowards(p.x,(lane-1)*2f,laneSpeed*Time.deltaTime);body.MovePosition(p);}
+ public void ResetRunner(){lane=1;body.position=new Vector3(0,.5f,0);InputEnabled=true;}
+ void OnCollisionEnter(Collision c){if(c.collider.CompareTag("Obstacle"))RunnerGame.Instance?.EndRun();}
 }
