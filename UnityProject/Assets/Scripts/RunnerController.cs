@@ -9,5 +9,5 @@ public sealed class RunnerController:MonoBehaviour{
  #endif
  Vector3 p=body.position;p.x=Mathf.MoveTowards(p.x,(lane-1)*2f,laneSpeed*Time.deltaTime);body.MovePosition(p);}
  public void ResetRunner(){lane=1;body.position=new Vector3(0,.5f,0);InputEnabled=true;}
- void OnCollisionEnter(Collision c){if(c.collider.CompareTag("Obstacle"))RunnerGame.Instance?.EndRun();}
+ void OnTriggerEnter(Collider other){if(other.CompareTag("Obstacle"))RunnerGame.Instance?.EndRun();}
 }
